@@ -1,83 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(VerificarIMC());
 }
 
-class Person {
-  String name;
-  double height;
-  double weight;
-
-  Person({required this.name, required this.height, required this.weight});
-
-  double calculateBMI() {
-    return weight / (height * height);
-  }
-}
-
-class PersonList with ChangeNotifier {
-  List<Person> _persons = [];
-
-  List<Person> get persons => _persons;
-
-  void addPerson(Person person) {
-    _persons.add(person);
-    notifyListeners();
-  }
-
-  void editPerson(int index, Person person) {
-    _persons[index] = person;
-    notifyListeners();
-  }
-
-  void deletePerson(int index) {
-    _persons.removeAt(index);
-    notifyListeners();
-  }
-}
-
-class MyApp extends StatelessWidget {
+class VerificarIMC extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: ChangeNotifierProvider(
-        create: (context) => PersonList(),
-        child: PersonListView(),
-      ),
+      debugShowCheckedModeBanner: false,
+      home: PessoaListScreen(),
     );
   }
 }
 
-class PersonListView extends StatelessWidget {
+class Pessoa {
+  final String nome;
+  final double? peso;
+  final double? altura;
+  final double imc;
+
+  Pessoa({
+    required this.nome,
+    required this.peso,
+    required this.altura,
+    required this.imc,
+  });
+}
+
+class PessoaListScreen extends StatefulWidget {
+  @override
+  _PessoaListScreenState createState() => _PessoaListScreenState();
+}
+
+class _PessoaListScreenState extends State<PessoaListScreen> {
+  List<Pessoa> _pessoas = [];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('IMC Calculator'),
+        title: Text('Lista de Pessoas'),
       ),
-      body: Consumer<PersonList>(
-        builder: (context, personList, child) {
-          return ListView.builder(
-            itemCount: personList.persons.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(personList.persons[index].name),
-                subtitle: Text(
-                    'BMI: ${personList.persons[index].calculateBMI().toStringAsFixed(2)}'),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PersonDetailsView(index),
-                    ),
-                  );
-                },
-                onLongPress: () {
-                  personList.deletePerson(index);
-                },
+      body: ListView.builder(
+        itemCount: _pessoas.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text(_pessoas[index].nome),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      PessoaDetailScreen(pessoa: _pessoas[index]),
+                ),
               );
+            },
+            onLongPress: () {
+              // Excluir registro
+              _pessoas.removeAt(index);
+              setState(() {});
             },
           );
         },
@@ -87,7 +69,12 @@ class PersonListView extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PersonAddView(),
+              builder: (context) => PessoaFormScreen(
+                onAdicionar: (pessoa) {
+                  _pessoas.add(pessoa);
+                  setState(() {});
+                },
+              ),
             ),
           );
         },
@@ -97,136 +84,158 @@ class PersonListView extends StatelessWidget {
   }
 }
 
-class PersonDetailsView extends StatefulWidget {
-  final int index;
+class PessoaFormScreen extends StatefulWidget {
+  final Function(Pessoa) onAdicionar;
 
-  PersonDetailsView(this.index);
+  const PessoaFormScreen({Key? key, required this.onAdicionar})
+      : super(key: key);
 
   @override
-  _PersonDetailsViewState createState() => _PersonDetailsViewState();
+  _PessoaFormScreenState createState() => _PessoaFormScreenState();
 }
 
-class _PersonDetailsViewState extends State<PersonDetailsView> {
-  final _nameController = TextEditingController();
-  final _heightController = TextEditingController();
-  final _weightController = TextEditingController();
+class _PessoaFormScreenState extends State<PessoaFormScreen> {
+  final _form = GlobalKey<FormState>();
+  final _valorPeso = TextEditingController();
+  final _valorNome = TextEditingController();
+  final _valorAltura = TextEditingController();
+  String _resultado = "Resultado";
+  String _classificacao = "";
 
-  @override
-  void initState() {
-    super.initState();
-    final person =
-        Provider.of<PersonList>(context, listen: false).persons[widget.index];
-    _nameController.text = person.name;
-    _heightController.text = person.height.toString();
-    _weightController.text = person.weight.toString();
+  void _calcularIMC() {
+    double? peso = double.tryParse(_valorPeso.text);
+    double? altura = double.tryParse(_valorAltura.text);
+
+    if (peso != null && altura != null) {
+      double imc = peso / (altura * altura);
+      setState(() {
+        _resultado = "Seu IMC é: ${imc.toStringAsFixed(2)}";
+
+        if (imc <= 18.5) {
+          _classificacao = "Classificação: Abaixo do peso";
+        } else if (imc >= 18.6 && imc <= 24.9) {
+          _classificacao = "Classificação: Peso normal";
+        } else if (imc >= 25 && imc <= 29.9) {
+          _classificacao = "Classificação: Acima do peso";
+        } else if (imc >= 30 && imc <= 39.9) {
+          _classificacao = "Obesidade grau 1";
+        } else if (imc >= 40) {
+          _classificacao = "Obesidade grau 2";
+        }
+      });
+    } else {
+      setState(() {
+        _resultado = "Informe peso e altura válidos.";
+      });
+    }
+  }
+
+  void _limparCampos() {
+    _valorNome.text = "";
+    _valorPeso.text = "";
+    _valorAltura.text = "";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Edit Person'),
+        title: Text('Adicionar Pessoa'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(labelText: 'Name'),
-            ),
-            TextField(
-              controller: _heightController,
-              decoration: InputDecoration(labelText: 'Height'),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: _weightController,
-              decoration: InputDecoration(labelText: 'Weight'),
-              keyboardType: TextInputType.number,
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    final name = _nameController.text;
-                    final height = double.parse(_heightController.text);
-                    final weight = double.parse(_weightController.text);
-                    final person =
-                        Person(name: name, height: height, weight: weight);
-
-                    Provider.of<PersonList>(context, listen: false)
-                        .editPerson(widget.index, person);
-                    Navigator.pop(context);
-                  },
-                  child: Text('Save'),
+        child: Form(
+          key: _form,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _valorNome,
+                keyboardType: TextInputType.text,
+                decoration: InputDecoration(
+                  labelText: 'Insira o seu nome',
                 ),
-                SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: Text('Cancel'),
+                validator: (value) {
+                  if (value!.isEmpty) {
+                    return 'Informe o nome';
+                  }
+                  return null;
+                },
+              ),
+              TextFormField(
+                controller: _valorPeso,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Insira o seu peso',
                 ),
-              ],
-            ),
-          ],
+                validator: (value) {
+                  if (value!.isEmpty) {
+                    return 'Informe o peso';
+                  }
+                  return null;
+                },
+              ),
+              TextFormField(
+                controller: _valorAltura,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Insira a sua altura',
+                ),
+                validator: (value) {
+                  if (value!.isEmpty) {
+                    return 'Insira a sua altura';
+                  }
+                  return null;
+                },
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (_form.currentState!.validate()) {
+                    _calcularIMC();
+                    widget.onAdicionar(
+                      Pessoa(
+                        nome: _valorNome.text,
+                        peso: double.tryParse(_valorPeso.text),
+                        altura: double.tryParse(_valorAltura.text),
+                        imc: double.parse(_resultado.split(' ')[3]),
+                      ),
+                    );
+                    _limparCampos();
+                    Navigator.pop(context); // Voltar para a tela anterior
+                  }
+                },
+                child: Text('Adicionar'),
+              ),
+              Text(_resultado),
+              Text(_classificacao),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class PersonAddView extends StatefulWidget {
-  @override
-  _PersonAddViewState createState() => _PersonAddViewState();
-}
+class PessoaDetailScreen extends StatelessWidget {
+  final Pessoa pessoa;
 
-class _PersonAddViewState extends State<PersonAddView> {
-  final _nameController = TextEditingController();
-  final _heightController = TextEditingController();
-  final _weightController = TextEditingController();
+  const PessoaDetailScreen({Key? key, required this.pessoa}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add Person'),
+        title: Text('Detalhes da Pessoa'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(labelText: 'Name'),
-            ),
-            TextField(
-              controller: _heightController,
-              decoration: InputDecoration(labelText: 'Height'),
-              keyboardType: TextInputType.number,
-            ),
-            TextField(
-              controller: _weightController,
-              decoration: InputDecoration(labelText: 'Weight'),
-              keyboardType: TextInputType.number,
-            ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                final name = _nameController.text;
-                final height = double.parse(_heightController.text);
-                final weight = double.parse(_weightController.text);
-                final person =
-                    Person(name: name, height: height, weight: weight);
-
-                Provider.of<PersonList>(context, listen: false)
-                    .addPerson(person);
-                Navigator.pop(context);
-              },
-              child: Text('Add Person'),
-            ),
+            Text('Nome: ${pessoa.nome}'),
+            Text('Peso: ${pessoa.peso} Kg'),
+            Text('Altura: ${pessoa.altura} m'),
+            Text('IMC: ${pessoa.imc.toStringAsFixed(2)}'),
           ],
         ),
       ),
